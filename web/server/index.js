@@ -23,7 +23,13 @@ app.use((req, res, next) => {
   next();
 });
 
-const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false });
+const loginLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: 'Too many sign-in or setup attempts. Wait 15 minutes, then try again.' }),
+});
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
 const cleanUser = ({ id, name, email, role }) => ({ id, name, email, role });
 const parseCookie = (header = '', name) => header.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1);

@@ -22,8 +22,12 @@ export default function AuthScreen({ mode, onComplete, onModeChange }: {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(setup ? { ownerName: name, email, password } : { email, password }),
       });
-      const body = await response.json();
+      const responseText = await response.text();
+      let body: { error?: string; user?: SignedInUser };
+      try { body = JSON.parse(responseText); }
+      catch { throw new Error(`The server returned an unexpected response (${response.status}). Restart the local API and try again.`); }
       if (!response.ok) throw new Error(body.error || 'Could not complete sign in.');
+      if (!body.user) throw new Error('The server did not return an account. Please try again.');
       onComplete(body.user);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Network error. Is the API running?'); }
     finally { setBusy(false); }

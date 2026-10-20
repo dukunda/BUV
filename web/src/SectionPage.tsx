@@ -34,6 +34,7 @@ export default function SectionPage({ name, businessUnits = [], onBusinessUnitsC
   if (name === 'Business Units') return <BusinessUnitsPage units={businessUnits} onChanged={onBusinessUnitsChanged}/>;
   if (name === 'Products') return <ProductsPage products={products} categories={categories} locations={businessUnits} onSaved={loadProducts}/>;
   if (name === 'Employees') return <EmployeesPage employees={employees} units={businessUnits} onSaved={loadEmployees}/>;
+  if (['Purchases', 'Sales & POS', 'Restaurant', 'Transfers', 'Daily Reports'].includes(name)) return <DemoOperationsPage name={name} />;
 
   const info = sectionInfo[name] ?? sectionInfo.Settings;
   if (name === 'Restaurant') return <>
@@ -51,6 +52,42 @@ export default function SectionPage({ name, businessUnits = [], onBusinessUnitsC
     </section>
     <Note title="Section preview">This page is navigable, but records, forms, and actions need the API and database features to be implemented.</Note>
     <Footer>BUVIMIMA Business Suite · <b>Data is not connected</b></Footer>
+  </>;
+}
+
+type DemoRow = { id: number; title: string; detail: string; amount: string; status: string; step: number };
+const demoConfigs: Record<string, { description: string; fields: string[]; stages: string[]; action: string; samples: DemoRow[] }> = {
+  Purchases: { description: 'Practice supplier orders, receiving, and payment status.', fields: ['Supplier', 'Item', 'Quantity', 'Total (RWF)'], stages: ['Draft', 'Ordered', 'Received', 'Paid'], action: 'Advance purchase', samples: [{ id: 1, title: 'Kigali Foods · Cooking oil', detail: '10 units · Demo purchase', amount: '85,000 RWF', status: 'Ordered', step: 1 }, { id: 2, title: 'Fresh Market · Tomatoes', detail: '20 kg · Demo purchase', amount: '24,000 RWF', status: 'Received', step: 2 }] },
+  'Sales & POS': { description: 'Try entering a counter sale and completing a payment.', fields: ['Item', 'Quantity', 'Total (RWF)', 'Payment method'], stages: ['Completed'], action: 'View sale', samples: [{ id: 1, title: 'Rice · 2 bags', detail: 'Cash · Demo transaction', amount: '36,000 RWF', status: 'Completed', step: 0 }] },
+  Restaurant: { description: 'Practice order entry and moving tickets through the kitchen.', fields: ['Table / customer', 'Order items', 'Total (RWF)'], stages: ['New', 'Preparing', 'Ready', 'Paid'], action: 'Advance order', samples: [{ id: 1, title: 'Table 4 · Grilled chicken', detail: '1 order · Demo ticket', amount: '12,000 RWF', status: 'Preparing', step: 1 }, { id: 2, title: 'Takeaway · Chips', detail: '1 order · Demo ticket', amount: '3,000 RWF', status: 'New', step: 0 }] },
+  Transfers: { description: 'Try creating a stock move and progressing it through dispatch and receipt.', fields: ['From location', 'To location', 'Item and quantity'], stages: ['Pending approval', 'Approved', 'Dispatched', 'Received'], action: 'Advance transfer', samples: [{ id: 1, title: 'Main Store → Branch A', detail: 'Cooking oil · 5 units · Demo', amount: '5 items', status: 'Pending approval', step: 0 }] },
+  'Daily Reports': { description: 'Practice submitting and reviewing a daily business report.', fields: ['Business unit', 'Employee', 'Sales total (RWF)', 'Notes'], stages: ['Submitted', 'Approved', 'Correction requested'], action: 'Review report', samples: [{ id: 1, title: 'Branch A · Daily close', detail: 'Demo report · Submitted today', amount: '142,000 RWF', status: 'Submitted', step: 0 }] },
+};
+
+function DemoOperationsPage({ name }: { name: string }) {
+  const config = demoConfigs[name];
+  const [rows, setRows] = React.useState<DemoRow[]>(config.samples);
+  const [showForm, setShowForm] = React.useState(false);
+  const [values, setValues] = React.useState<Record<string, string>>({});
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const first = values[config.fields[0]]?.trim() || name;
+    const second = values[config.fields[1]]?.trim() || 'Demo entry';
+    const amountField = config.fields.find(field => field.toLowerCase().includes('total'));
+    const amount = amountField && values[amountField] ? `${Number(values[amountField]).toLocaleString()} RWF` : '—';
+    setRows(current => [{ id: Date.now(), title: `${first} · ${second}`, detail: 'Created in this demo session', amount, status: config.stages[0], step: 0 }, ...current]);
+    setValues({}); setShowForm(false);
+  }
+  function advance(row: DemoRow) {
+    const next = Math.min(row.step + 1, config.stages.length - 1);
+    setRows(current => current.map(item => item.id === row.id ? { ...item, step: next, status: config.stages[next] } : item));
+  }
+  return <>
+    <div className="page-heading"><div><div className="eyebrow">INTERACTIVE PREVIEW</div><h1>{name}</h1><p>{config.description}</p></div><button className="primary-action" onClick={() => setShowForm(current => !current)}>{showForm ? 'Close form' : `+ ${name === 'Sales & POS' ? 'New sale' : name === 'Restaurant' ? 'New order' : name === 'Transfers' ? 'New transfer' : name === 'Daily Reports' ? 'Submit report' : 'New purchase'}`}</button></div>
+    <div className="demo-banner"><CircleAlert size={17}/><span><b>Demo only</b> Changes stay in this page session and are cleared when you leave or refresh. Nothing is sent to the API or saved.</span></div>
+    {showForm && <form className="panel unit-form" onSubmit={submit}><div className="form-title"><h3>{name === 'Sales & POS' ? 'Enter a sale' : name === 'Restaurant' ? 'Create order' : name === 'Transfers' ? 'Create transfer' : name === 'Daily Reports' ? 'Submit daily report' : 'Record purchase'}</h3><p>Use any test details. They are temporary.</p></div><div className="form-grid">{config.fields.map((field, index) => <label key={field}>{field}<input required={index < 2} type={field.toLowerCase().includes('total') || field.toLowerCase().includes('quantity') ? 'number' : 'text'} min={field.toLowerCase().includes('total') || field.toLowerCase().includes('quantity') ? '0' : undefined} value={values[field] || ''} onChange={event => setValues(current => ({ ...current, [field]: event.target.value }))} placeholder={`Enter ${field.toLowerCase()}`}/></label>)}</div><div className="form-actions"><button type="button" className="filter" onClick={() => setShowForm(false)}>Cancel</button><button className="primary-action">Add demo record</button></div></form>}
+    <section className="panel page-table"><div className="panel-head"><div><h3>{name} demo records</h3><p>{rows.length} temporary record{rows.length === 1 ? '' : 's'}</p></div><span className="setup-badge">Session only</span></div><div className="demo-list">{rows.map(row => <div className="demo-row" key={row.id}><div className="demo-copy"><b>{row.title}</b><small>{row.detail}</small></div><strong>{row.amount}</strong><span className="demo-status">{row.status}</span>{row.step < config.stages.length - 1 && <button className="small-action" onClick={() => advance(row)}>{config.action} →</button>}</div>)}</div></section>
+    <Footer>Sample information is temporary and is not saved.</Footer>
   </>;
 }
 
